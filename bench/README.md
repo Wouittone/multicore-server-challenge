@@ -10,6 +10,12 @@ GOOS=linux GOARCH=amd64 go build -o loadgen ./cmd/loadgen  # load boxes
 go test ./cmd/loadgen                                      # user model vs WORKLOAD.md mix, against a stub server
 ```
 
+The load generator also builds natively on Windows. CPU and resident-memory
+instrumentation uses Windows APIs there, and transparent stale-connection
+retries recognize Winsock abort/reset errors. Allow TIME_WAIT sockets to expire
+between large local runs rather than treating ephemeral-port exhaustion as a
+server capacity limit.
+
 ## loadgen
 
 One binary with three subcommands. Each virtual user (VU) is one goroutine with **its own keep-alive TCP

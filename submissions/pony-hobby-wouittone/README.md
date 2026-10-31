@@ -111,6 +111,11 @@ It creates an isolated, loopback-only PostgreSQL cluster on port 55439 and a dev
 seed (100,000 users, 10,000 articles) under ignored `bin/`. It runs the same
 probes and hold, then stops its own server and database processes. The cluster
 and results are retained; it refuses to overwrite an existing database.
+Windows runs wait 240 seconds between connection-heavy phases so TIME_WAIT
+sockets can expire without modifying operating-system settings. An immediate
+repeat can otherwise exhaust ephemeral ports and falsely suggest a server
+limit. `-UseExistingSeed -HoldUsers 10000` repeats just a hold against the
+retained, already-mutated database; it is not a fresh-seed comparison.
 
 These are **performance screens, not leaderboard scores**: the application,
 PostgreSQL, and load generator share one machine, Windows uses the smaller
@@ -120,3 +125,24 @@ The probe ceiling is a test budget, not proof of the server's maximum capacity.
 Raw verdicts retain load-generator limitation indicators. Windows loadgen
 instrumentation uses native system/process CPU and working-set counters;
 Linux retains the existing `/proc` instrumentation.
+
+### Recorded screens (2026-10-31)
+
+| Environment | Five-minute hold | req/s | p95 ms | p99 ms | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Windows 11, Ryzen 7 3800X (8 cores / 16 threads), 32 GB, dev seed | 10,000 users | 2,648 | 13.4 | 21.4 | 0 |
+| Ubuntu Actions, 4 vCPU, full seed, first run | 5,000 users | 1,319 | 62.2 | 434.4 | 0 |
+| Ubuntu Actions, 4 vCPU, full seed, repeat | 5,000 users | 1,315 | 55.1 | 341.0 | 0 |
+
+Both Actions runs passed 5,000-user probes and holds, but failed the
+10,000-user probes (p95 about 4.6-4.9 seconds, errors about 31-33%).
+The tested capacity is therefore bracketed coarsely, not determined to the
+official search's 5% resolution. The local 10,000-user hold passed after a
+cooldown, on a retained database already mutated by the probes. An earlier
+immediate hold failed with Windows ephemeral-port exhaustion; that is not
+treated as an application capacity measurement.
+
+Evidence: [first Actions run](https://github.com/Wouittone/multicore-server-challenge/actions/runs/41225615665),
+[repeat with cross-platform loadgen tests](https://github.com/Wouittone/multicore-server-challenge/actions/runs/41227009903).
+Each contains the downloadable `pony-hobby-performance` artifact.
+Local raw and merged results are retained in `bin/local-performance/`.

@@ -1,7 +1,10 @@
 param(
     [string]$PostgresBin = "$PSScriptRoot\bin\tools\postgres\pgsql\bin",
     [string]$Go = "$PSScriptRoot\bin\tools\golang\go\bin\go.exe",
-    [int[]]$Users = @(500, 2000, 5000, 10000)
+    [ValidateRange(1, 1000000)][int[]]$Users = @(500, 2000, 5000, 10000),
+    [switch]$UseExistingSeed,
+    [ValidateRange(0, 1000000)][int]$HoldUsers = 0,
+    [ValidateRange(0, 3600)][int]$CooldownSeconds = 240
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
@@ -32,33 +35,41 @@ try {
         Checked $Go @('build', '-o', "$out\seedgen.exe", './cmd/seedgen')
         Checked $Go @('build', '-o', "$out\loadgen.exe", './cmd/loadgen')
     } finally { Pop-Location }
-    Checked "$out\seedgen.exe" @('-out', "$out\seed", '-scale', '0.02')
     $psql = "$PostgresBin\psql.exe"
     $connect = @('-X', '-q', '-v', 'ON_ERROR_STOP=1', '-h', '127.0.0.1', '-p', '55439', '-U', 'postgres')
-    Checked $psql ($connect + @('-d', 'postgres', '-c', 'CREATE DATABASE conduit_local'))
-    Checked $psql ($connect + @('-d', 'conduit_local', '-f', "$root\schema.sql"))
-    $tables = @(
-        @('tags', 'id,name', 'tags.tsv'),
-        @('users', 'id,username,email,password_hash,bio,image,created_at', 'users.tsv'),
-        @('articles', 'id,slug,author_id,title,description,body,created_at,updated_at', 'articles.*.tsv'),
-        @('article_tags', 'article_id,tag_id', 'article_tags.*.tsv'),
-        @('favorites', 'user_id,article_id,created_at', 'favorites.*.tsv'),
-        @('comments', 'article_id,author_id,body,created_at,updated_at', 'comments.*.tsv'),
-        @('follows', 'follower_id,followee_id,created_at', 'follows.*.tsv')
-    )
-    foreach ($table in $tables) {
-        foreach ($file in Get-ChildItem "$out\seed" -Filter $table[2] | Sort-Object Name) {
-            $path = $file.FullName.Replace('\', '/').Replace("'", "''")
-            Checked $psql ($connect + @('-d', 'conduit_local', '-c', "\copy $($table[0]) ($($table[1])) FROM '$path'"))
+    if (-not $UseExistingSeed) {
+        Checked "$out\seedgen.exe" @('-out', "$out\seed", '-scale', '0.02')
+        Checked $psql ($connect + @('-d', 'postgres', '-c', 'CREATE DATABASE conduit_local'))
+        Checked $psql ($connect + @('-d', 'conduit_local', '-f', "$root\schema.sql"))
+        $tables = @(
+            @('tags', 'id,name', 'tags.tsv'),
+            @('users', 'id,username,email,password_hash,bio,image,created_at', 'users.tsv'),
+            @('articles', 'id,slug,author_id,title,description,body,created_at,updated_at', 'articles.*.tsv'),
+            @('article_tags', 'article_id,tag_id', 'article_tags.*.tsv'),
+            @('favorites', 'user_id,article_id,created_at', 'favorites.*.tsv'),
+            @('comments', 'article_id,author_id,body,created_at,updated_at', 'comments.*.tsv'),
+            @('follows', 'follower_id,followee_id,created_at', 'follows.*.tsv')
+        )
+        foreach ($table in $tables) {
+            foreach ($file in Get-ChildItem "$out\seed" -Filter $table[2] | Sort-Object Name) {
+                $path = $file.FullName.Replace('\', '/').Replace("'", "''")
+                Checked $psql ($connect + @('-d', 'conduit_local', '-c', "\copy $($table[0]) ($($table[1])) FROM '$path'"))
+            }
         }
+        foreach ($table in @('users', 'articles', 'tags', 'comments')) {
+            Checked $psql ($connect + @('-d', 'conduit_local', '-c', "SELECT setval(pg_get_serial_sequence('$table','id'), (SELECT max(id) FROM $table))"))
+        }
+        Checked $psql ($connect + @('-d', 'conduit_local', '-c', 'VACUUM (FREEZE, ANALYZE)'))
+    } else {
+        Checked $psql ($connect + @('-d', 'conduit_local', '-c', 'SELECT count(*) FROM articles'))
     }
-    foreach ($table in @('users', 'articles', 'tags', 'comments')) {
-        Checked $psql ($connect + @('-d', 'conduit_local', '-c', "SELECT setval(pg_get_serial_sequence('$table','id'), (SELECT max(id) FROM $table))"))
-    }
-    Checked $psql ($connect + @('-d', 'conduit_local', '-c', 'VACUUM (FREEZE, ANALYZE)'))
     Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List | Out-File "$out\environment.txt"
     Get-CimInstance Win32_OperatingSystem | Select-Object Caption, TotalVisibleMemorySize | Format-List | Out-File "$out\environment.txt" -Append
     'Dev seed (10,000 articles); direct HTTP; co-located generator; no CPU isolation.' | Out-File "$out\environment.txt" -Append
+    "Retained database reused: $UseExistingSeed" | Out-File "$out\environment.txt" -Append
+    & $psql @connect -d conduit_local -At -c 'SELECT count(*) FROM articles' |
+        Out-File "$out\environment.txt" -Append
+    if ($LASTEXITCODE -ne 0) { throw 'Could not record database size' }
     $env:DATABASE_URL = 'postgres://postgres@127.0.0.1:55439/conduit_local'
     $env:JWT_SECRET = 'local-performance-only'
     $env:HOST = '127.0.0.1'
@@ -72,9 +83,11 @@ try {
         Start-Sleep -Seconds 1
     }
     if (-not $ready) { throw 'Server did not become ready' }
-    $best = 0
+    $best = $HoldUsers
     $run = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ($HoldUsers -gt 0) { $Users = @() }
     foreach ($count in $Users) {
+        Start-Sleep -Seconds $CooldownSeconds
         Checked "$out\loadgen.exe" @('run', '-target', 'http://127.0.0.1:3110', '-users', "$count",
             '-ramp', '30s', '-measure', '60s', '-tail', '5s', '-articles', '10000',
             '-secret', $env:JWT_SECRET, '-run-id', "local-$run-$count", '-out', "$out\probe-$count.json")
@@ -86,6 +99,7 @@ try {
         $best = $count
     }
     if ($best -gt 0) {
+        Start-Sleep -Seconds $CooldownSeconds
         Checked "$out\loadgen.exe" @('run', '-target', 'http://127.0.0.1:3110', '-users', "$best",
             '-ramp', '60s', '-measure', '300s', '-tail', '5s', '-articles', '10000',
             '-secret', $env:JWT_SECRET, '-run-id', "local-$run-hold", '-out', "$out\hold.json")
