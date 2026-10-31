@@ -44,3 +44,38 @@ jobs:
         run: sudo bash submissions/pony-hobby-wouittone/install.sh
       - name: Build, start, and run full conformance
         run: bash test/run.sh submissions/pony-hobby-wouittone
+
+  performance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: bench/go.mod
+          cache-dependency-path: bench/go.sum
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client curl jq
+      - name: Create full benchmark seed
+        run: bash seed/make-seed.sh
+      - name: Install and build Pony
+        run: sudo bash submissions/pony-hobby-wouittone/install.sh && bash submissions/pony-hobby-wouittone/build.sh
+      - name: Run full-seed performance screen and hold
+        run: bash submissions/pony-hobby-wouittone/benchmark.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pony-hobby-performance
+          path: submissions/pony-hobby-wouittone/bin/performance/

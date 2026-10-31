@@ -94,3 +94,28 @@ JSON, input validation, HS256 JWTs, typed entities, UTC timestamps, and bcrypt.
 The push workflow runs the same Windows build plus the full challenge
 conformance suite against a fresh PostgreSQL 18 database on Ubuntu 24.04.
 No performance score is claimed.
+
+## Performance measurements
+
+`benchmark.sh` runs the repository's official load generator against the full
+seed in the push workflow. It probes 500, 2,000, 5,000, and 10,000 users with
+30-second ramps and 60-second measurement windows, stopping on a failing or
+load-generator-limited probe. The highest eligible passing probe receives a
+60-second ramp and a five-minute hold. Raw histograms, merged endpoint metrics,
+environment details, and server logs are uploaded as `pony-hobby-performance`.
+Capacity failures are measurement outcomes, not workflow errors.
+
+For a local Windows measurement, run `benchmark.ps1` after `build.ps1`, providing
+PostgreSQL 18's binary directory with `-PostgresBin` and Go >= 1.27.1 with `-Go`.
+It creates an isolated, loopback-only PostgreSQL cluster on port 55439 and a dev
+seed (100,000 users, 10,000 articles) under ignored `bin/`. It runs the same
+probes and hold, then stops its own server and database processes. The cluster
+and results are retained; it refuses to overwrite an existing cluster.
+
+These are **performance screens, not leaderboard scores**: the application,
+PostgreSQL, and load generator share one machine, Windows uses the smaller
+seed, and GitHub runners are shared infrastructure. Both tests access Hobby
+directly, without Nginx, whereas the submitted configuration declares Nginx.
+The probe ceiling is a test budget, not proof of the server's maximum capacity.
+Raw verdicts retain load-generator limitation indicators; Windows does not
+provide the Linux `/proc/stat` whole-machine CPU measurement.
