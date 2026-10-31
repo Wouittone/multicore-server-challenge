@@ -14,7 +14,7 @@ install_release() {
     local url="https://github.com/ponylang/$repo/releases/download/$version/$archive"
     curl --fail --location --retry 3 -o "$archive" "$url"
     curl --fail --location --retry 3 -o "$archive.sha512" "$url.sha512"
-    sha512sum --check "$archive.sha512"
+    printf '%s  %s\n' "$(cat "$archive.sha512")" "$archive" | sha512sum --check -
     mkdir -p "$dest"
     tar -xzf "$archive" -C "$dest" --strip-components=1
   )

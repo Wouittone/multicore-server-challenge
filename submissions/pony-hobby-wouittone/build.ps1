@@ -16,7 +16,9 @@ function Get-Tool([string]$Name, [string]$Version, [string]$Archive) {
     $zip = Join-Path $dest $Archive
     $url = "https://github.com/ponylang/$Name/releases/download/$Version/$Archive"
     Invoke-WebRequest $url -OutFile $zip
-    $expected = ((Invoke-WebRequest "$url.sha512").Content -split '\s+')[0]
+    $checksum = "$zip.sha512"
+    Invoke-WebRequest "$url.sha512" -OutFile $checksum
+    $expected = ((Get-Content $checksum -Raw) -split '\s+')[0]
     if ((Get-FileHash $zip -Algorithm SHA512).Hash -ine $expected) {
         throw "$Name archive checksum mismatch"
     }
