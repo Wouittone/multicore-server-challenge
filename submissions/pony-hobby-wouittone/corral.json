@@ -1,0 +1,28 @@
+{
+  "packages": [
+    "conduit",
+    "tests"
+  ],
+  "deps": [
+    {
+      "locator": "github.com/ponylang/postgres.git",
+      "version": ""
+    },
+    {
+      "locator": "github.com/ponylang/hobby.git",
+      "version": "0.18.0"
+    },
+    {
+      "locator": "github.com/ponylang/stallion.git",
+      "version": ""
+    }
+  ],
+  "info": {
+    "description": "Conduit API for the multicore server challenge",
+    "homepage": "https://github.com/Wouittone/multicore-server-challenge",
+    "license": "MIT",
+    "documentation_url": "",
+    "version": "",
+    "name": "pony-hobby-wouittone"
+  }
+}
