@@ -150,6 +150,19 @@ class iso _Passwords is UnitTest
     h.assert_eq[String]("$2b$10$", hash'.substring(0, 7))
     h.assert_true(Password.verify("password", hash')?)
     h.assert_false(Password.verify("wrong", hash')?)
+    let raw_hash = recover iso Array[U8] end
+    for byte in hash'.values() do raw_hash.push(byte) end
+    raw_hash.push('x')
+    raw_hash.truncate(60)
+    let database_hash = String.from_array(consume raw_hash)
+    h.assert_false(database_hash.is_null_terminated())
+    let raw_password = recover iso Array[U8] end
+    for byte in "password".values() do raw_password.push(byte) end
+    raw_password.push('x')
+    raw_password.truncate(8)
+    let database_password = String.from_array(consume raw_password)
+    h.assert_false(database_password.is_null_terminated())
+    h.assert_true(Password.verify(database_password, database_hash)?)
     h.assert_true(hash' != Password.hash("password")?)
     try Password.hash(String.from_array(recover val Array[U8].init('x', 73) end))?
       h.fail("accepted password above bcrypt byte limit")

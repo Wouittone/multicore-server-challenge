@@ -60,10 +60,10 @@ primitive Password
     let scratch = Array[U8].init(0, 32768)
     let ptr =
       ifdef linux then
-        @crypt_rn(password.cpointer(), salt.cpointer(),
+        @crypt_rn(password.cstring(), salt.cstring(),
           scratch.cpointer(), 32768)
       elseif windows then
-        @_crypt_blowfish_rn(password.cpointer(), salt.cpointer(),
+        @_crypt_blowfish_rn(password.cstring(), salt.cstring(),
           scratch.cpointer(), 32768)
       else
         error
