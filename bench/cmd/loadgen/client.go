@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -177,5 +178,7 @@ func readBody(resp *http.Response, want func([]byte)) error {
 
 func isConnGone(err error) bool {
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, syscall.ECONNRESET) ||
-		errors.Is(err, syscall.EPIPE)
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNABORTED) ||
+		(runtime.GOOS == "windows" && (errors.Is(err, syscall.Errno(10053)) ||
+			errors.Is(err, syscall.Errno(10054)))) // WSAECONNABORTED / WSAECONNRESET
 }

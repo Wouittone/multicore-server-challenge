@@ -110,12 +110,13 @@ PostgreSQL 18's binary directory with `-PostgresBin` and Go >= 1.27.1 with `-Go`
 It creates an isolated, loopback-only PostgreSQL cluster on port 55439 and a dev
 seed (100,000 users, 10,000 articles) under ignored `bin/`. It runs the same
 probes and hold, then stops its own server and database processes. The cluster
-and results are retained; it refuses to overwrite an existing cluster.
+and results are retained; it refuses to overwrite an existing database.
 
 These are **performance screens, not leaderboard scores**: the application,
 PostgreSQL, and load generator share one machine, Windows uses the smaller
 seed, and GitHub runners are shared infrastructure. Both tests access Hobby
 directly, without Nginx, whereas the submitted configuration declares Nginx.
 The probe ceiling is a test budget, not proof of the server's maximum capacity.
-Raw verdicts retain load-generator limitation indicators; Windows does not
-provide the Linux `/proc/stat` whole-machine CPU measurement.
+Raw verdicts retain load-generator limitation indicators. Windows loadgen
+instrumentation uses native system/process CPU and working-set counters;
+Linux retains the existing `/proc` instrumentation.

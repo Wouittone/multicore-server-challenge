@@ -4,6 +4,7 @@ on:
     paths:
       - submissions/pony-hobby-wouittone/**
       - .github/workflows/pony-hobby-push.yml
+      - bench/cmd/loadgen/**
 permissions:
   contents: read
 
@@ -12,6 +13,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: bench/go.mod
+          cache-dependency-path: bench/go.sum
+      - name: Test Windows load generator
+        working-directory: bench
+        run: go test ./cmd/loadgen
       - name: Build and run all Pony unit tests
         shell: pwsh
         run: ./submissions/pony-hobby-wouittone/build.ps1
@@ -38,6 +46,9 @@ jobs:
           cache-dependency-path: bench/go.sum
       - name: Install test tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client curl jq
+      - name: Test Linux load generator
+        working-directory: bench
+        run: go test ./cmd/loadgen
       - name: Seed PostgreSQL
         run: bash seed/make-seed.sh --dev
       - name: Install Pony toolchain and C libraries

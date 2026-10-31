@@ -61,7 +61,7 @@ The output JSON has:
 - `endpoints` (per label: count, statuses, error classes, an example error, and the histogram as an HdrHistogram V2
   compressed base64 string);
 - `pages` and `session_starts`, counted in the window;
-- `box`: box CPU avg/max over the window from `/proc/stat` (`null` on macOS), the loadgen process's CPU, peak RSS,
+- `box`: box CPU avg/max over the window from `/proc/stat` on Linux or `GetSystemTimes` on Windows (`null` on macOS), the loadgen process's CPU, peak RSS,
   TCP connects, and `fell_behind`;
 - `timeline`, one entry per second of the whole run: started/completed/errors, active VUs, p50/p95/p99 (plus that
   second's encoded histogram, so boxes merge exactly), timer wake-up lag, box CPU, process CPU, RSS and goroutines.

@@ -15,10 +15,16 @@ function Checked([string]$Command, [string[]]$Arguments) {
 if (-not (Test-Path "$PSScriptRoot\bin\conduit.exe")) { throw 'Run build.ps1 first' }
 if (-not (Test-Path "$PostgresBin\initdb.exe")) { throw 'Provide PostgreSQL 18 binaries using -PostgresBin' }
 if (-not (Test-Path $Go)) { throw 'Provide Go >= 1.27.1 using -Go' }
-if (Test-Path $cluster) { throw 'Local cluster already exists; preserve it and choose a fresh workspace for another seed' }
+if ((Test-Path $cluster) -and -not (Test-Path "$cluster\PG_VERSION")) {
+    throw 'Cluster directory exists but is not initialized; refusing to overwrite it'
+}
 $env:PATH = "$PostgresBin;C:\Program Files\Git\ucrt64\bin;$env:PATH"
-Checked "$PostgresBin\initdb.exe" @('-D', $cluster, '-U', 'postgres', '-A', 'trust', '--encoding=UTF8', '--locale=C')
-Checked "$PostgresBin\pg_ctl.exe" @('-D', $cluster, '-l', "$out\postgres.log", '-o', '-h 127.0.0.1 -p 55439', '-w', 'start')
+if (-not (Test-Path "$cluster\PG_VERSION")) {
+    Checked "$PostgresBin\initdb.exe" @('-D', $cluster, '-U', 'postgres', '-A', 'trust', '--encoding=UTF8', '--locale=C')
+}
+$startup = Start-Process "$PostgresBin\pg_ctl.exe" -ArgumentList @('-D', "`"$cluster`"", '-l', "`"$out\postgres.log`"", '-o', '"-h 127.0.0.1 -p 55439"', '-w', 'start') -PassThru -RedirectStandardOutput "$out\postgres-start.log" -RedirectStandardError "$out\postgres-start-errors.log"
+$startup.WaitForExit()
+if ($startup.ExitCode -ne 0) { throw 'PostgreSQL startup failed; see postgres-start logs' }
 $server = $null
 try {
     Push-Location "$root\bench"
